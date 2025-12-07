@@ -1,0 +1,180 @@
+local RunService =game:GetService('RunService')
+local debris = game:GetService("Debris")
+local ContextActionService = game:GetService("ContextActionService")
+local Tweenservice =game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+
+local plr = game.Players.LocalPlayer
+
+local mouse = plr:GetMouse()
+local gun = script.Parent
+
+local Settings = require(gun.Config)
+local GunAttribute = Settings.GunAttributes
+
+local GunAsset = gun.GunAssets
+local ExcludeFilter = {}
+local gunpart = gun:GetChildren()
+
+local Maximum = GunAttribute.BulletCapacity
+local CurrentBullet = GunAttribute.BulletCapacity
+
+local char = plr.Character or plr.CharacterAdded:Wait()
+local SGui = GunAsset.ScreenGui
+local hum = char:FindFirstChild("Humanoid")
+local Animation = hum.Animator:LoadAnimation(GunAsset.IdleAnimation)  
+
+if hum:IsA("Humanoid") then
+
+	gun.Equipped:Connect(function()
+		SGui.Parent = plr.PlayerGui
+		SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum)
+		mouse.Icon = GunAttribute.CrossHairId
+	
+		if char then
+			local hum = char:FindFirstChild("Humanoid")
+			if hum:IsA("Humanoid") then
+				Animation:Play()
+			end
+		end
+		GunAsset.EquipSound:Play()
+
+	end)
+
+	gun.Unequipped:Connect(function()
+		SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum)
+		SGui.Parent = GunAsset
+		Animation:Stop()
+		mouse.Icon = ""
+
+	end)
+end
+
+table.insert(ExcludeFilter,gunpart)
+if char then
+	table.insert(ExcludeFilter,char:GetDescendants())
+end
+
+local raycastFilter = RaycastParams.new()
+raycastFilter.FilterType = Enum.RaycastFilterType.Exclude
+raycastFilter.FilterDescendantsInstances = ExcludeFilter
+
+local debounce =false
+
+local function ChangeDebounce()
+
+	task.wait(GunAttribute.HollowTime)
+	debounce=false
+end
+
+local tinfo  = TweenInfo.new(0.5)
+
+local function ReloadAction(actionName, inputState)
+	if actionName == "Reload" and inputState == Enum.UserInputState.Begin then
+		debounce = true
+ 
+		local mag= gun.GunAssets.Mag:Clone()
+		mag.Anchored= false
+		mag.CanCollide =true
+		mag.CFrame = gun.Body.CFrame
+		mag.Transparency = 0
+		mag.Parent = workspace
+		debris:AddItem(mag,GunAttribute.ReloadTime+4)
+		SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum) .. " (reloading...)"
+		local AnimationReload = GunAsset.ReloadAnimation
+		local LoadingTrack = hum.Animator:LoadAnimation(AnimationReload)
+		Tweenservice:Create(gun,tinfo,{Grip = CFrame.new(-0.2,0,0.4)* CFrame.Angles(0,-90,45)}):Play()
+		LoadingTrack:Play()
+		
+		task.wait(0.3)
+		GunAsset.Reload:Play()
+		task.wait(GunAttribute.ReloadTime-0.3)
+		LoadingTrack:Stop()
+		hum.Animator:LoadAnimation(GunAsset.IdleAnimation):Play()
+		Tweenservice:Create(gun,tinfo,{Grip = CFrame.new(0, -0.3, 0.3) *CFrame.Angles(0,math.rad(-90),0)}):Play() 
+		 
+		CurrentBullet = Maximum
+		SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum)
+		task.wait(.5)
+		debounce = false
+	end
+
+end
+
+ContextActionService:BindAction("Reload",ReloadAction,true,Enum.KeyCode.R)
+
+mouse.Button1Down:Connect(function()
+	if gun.Parent == plr.Character and debounce == false then
+		debounce =true
+
+		local origin= gun.Shoot.Position
+
+		local shootCF = gun.Shoot.CFrame
+		local forward = shootCF.RightVector
+
+		local rawDir = (mouse.Hit.Position - gun.Shoot.Position).Unit
+		local dot = forward:Dot(rawDir)
+
+		if dot <= 0 then
+			rawDir = forward
+		end
+
+		local direction = rawDir * GunAttribute.Distance_Mult
+
+		local raycast = workspace:Raycast(gun.Shoot.Position,direction,raycastFilter)
+
+		if CurrentBullet <=0 then
+			GunAsset.Reload:Play()
+
+			local mag= gun.GunAssets.Mag:Clone()
+			mag.Anchored= false
+			mag.CanCollide =true
+			mag.CFrame = gun.Body.CFrame
+			mag.Transparency = 0
+			mag.Parent = workspace
+			debris:AddItem(mag,GunAttribute.ReloadTime+4)
+			SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum) .. " (reloading...)"
+			task.wait(GunAttribute.ReloadTime)
+			CurrentBullet = Maximum
+
+			SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum)
+			debounce = false
+
+			return  
+		end
+
+		if raycast and CurrentBullet >0 then
+
+			GunAsset.Fire:FireServer(mouse.Hit.Position,{raycast.Instance,raycast.Position,raycast.Normal},direction,"Active")
+
+		else
+
+			GunAsset.Fire:FireServer(mouse.Hit.Position,nil,direction,"Inactive" )
+
+		end
+		CurrentBullet -=1
+		SGui.TextLabel.Text = "Ammo : " .. tostring(CurrentBullet) .. "/" .. tostring(Maximum)
+
+
+		ChangeDebounce()
+	end
+end)
+
+local playerscript = plr.PlayerScripts
+local Fov= playerscript:WaitForChild("FirstPersonView")
+
+mouse.Button2Down:Connect(function()
+	if gun.Parent == plr.Character then
+		Tweenservice:Create(gun,TweenInfo.new(0.3),{Grip = CFrame.new(0.9, -0.45, 0.76) *CFrame.Angles(0,math.rad(-70),0)}):Play() 
+		Fov.Enabled = false
+		UIS.MouseIconEnabled = false
+	end
+end)
+
+mouse.Button2Up:Connect(function()
+	if gun.Parent == plr.Character then
+		Tweenservice:Create(gun,TweenInfo.new(0.3),{Grip = CFrame.new(0, -0.3, 0.3) *CFrame.Angles(0,math.rad(-90),0)}):Play() 
+		 Fov.Enabled = true
+		UIS.MouseIconEnabled = true
+	end
+end)
