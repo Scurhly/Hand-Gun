@@ -1,0 +1,14 @@
+local Gun = script.Parent
+local GunAsset = Gun.GunAssets
+local Settings = require(Gun.Config)
+
+GunAsset.Fire.OnServerEvent:Connect(function(plr,mouseHitPosition,raycasttable,direction,Cmd)
+
+	if Cmd == "Active" then
+	 
+		Settings.RayVisualizer(mouseHitPosition,direction,raycasttable)
+		Settings.DealDamage(raycasttable[1],raycasttable[2])
+	elseif Cmd =="Inactive" then
+		Settings.RayVisualizer(mouseHitPosition,direction)
+	end
+end)
