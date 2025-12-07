@@ -1,0 +1,149 @@
+local Settings = {}
+local gun = script.Parent
+local debris = game:GetService("Debris")
+local tweenservice = game:GetService("TweenService")
+local GunAsset = gun.GunAssets
+
+Settings.GunAttributes ={
+	["Distance_Mult"] = 100,
+	["TimeElapse"] = 0.5,
+	["BulletCapacity"] = 36,
+	["ReloadTime"] = 2,
+	["HollowTime"] = .8,
+	["CrossHairId"] = "rbxassetid://123716945591272",
+}
+
+function Settings.RayVisualizer(mousePos,direction,raycastInstance)
+
+	local ShootAudio = GunAsset.FireSound
+	ShootAudio:Play()
+
+	task.spawn(function()
+		local light = gun.Shoot.light:Clone()
+		light.Parent = gun.Shoot
+		light.Enabled =true
+		local Explode = gun.Shoot.MuzzleEffect:Clone()
+		Explode.Parent = gun.Shoot
+
+		Explode.Enabled=true
+
+		debris:AddItem(Explode,0.1)
+
+		debris:AddItem(light,0.1)
+
+	end)
+
+	local shootCF = gun.Shoot.CFrame
+	local forward = shootCF.RightVector
+
+	local rawDir = (mousePos - gun.Shoot.Position).Unit
+	local dot = forward:Dot(rawDir)
+
+	if dot <= 0 then
+		rawDir = forward
+	end
+
+
+	local midpoint = gun.Shoot.Position +direction *0.5
+
+	local bullet = Instance.new('Part')
+	bullet.CanCollide=false
+	bullet.Anchored=false
+	bullet.Transparency  =0.4
+	bullet.Material =Enum.Material.SmoothPlastic
+	--	bullet.Shape = Enum.PartType.Cylinder
+	bullet.Color = Color3.fromRGB(255,170,0)
+	bullet.Massless =true
+	bullet.Size = Vector3.new(0.1,0.1,direction.Magnitude)
+	bullet.CFrame = CFrame.new(midpoint,mousePos+direction)
+
+	local Attachment = Instance.new("Attachment")
+	Attachment.Parent = bullet
+
+	local VectorForce = Instance.new("VectorForce")
+	VectorForce.Attachment0 = Attachment
+	VectorForce.Enabled=true
+	VectorForce.RelativeTo= Enum.ActuatorRelativeTo.Attachment0
+	VectorForce.Force = Vector3.new(0,100,-5000)
+	VectorForce.Parent = bullet
+
+
+	local shells= gun.GunAssets.Bullet:Clone()
+	shells.Anchored= false
+	shells.CanCollide =true
+	shells.Size = Vector3.new(0.232,0.079,0.079)
+	shells.CFrame = gun.Body.CFrame
+	shells.Transparency = 0
+	shells.Parent = workspace
+	bullet.Parent = workspace
+
+	local audiodropping = gun.GunAssets.CasingDropping:Clone()
+	audiodropping.Parent= workspace
+	audiodropping:Play() 
+	if raycastInstance ~= nil then
+
+		local bullethole = gun.GunAssets.bullethole:Clone()
+		bullethole.Anchored = true
+		bullethole.Decal.Transparency = 0
+		bullethole.Decal2.Transparency = 0
+		bullethole.CFrame = CFrame.lookAt(
+			raycastInstance[2] + raycastInstance[3] * 0.01,  
+			raycastInstance[2],
+			Vector3.yAxis
+		)
+		bullethole.Parent = workspace
+
+		debris:AddItem(bullethole,6)
+
+	end
+	debris:AddItem(audiodropping,audiodropping.TimeLength+0.2)
+	debris:AddItem(shells,6)
+
+
+end
+local NormalDmg = 20
+local tinfo = TweenInfo.new(1.5,Enum.EasingStyle.Linear,Enum.EasingDirection.Out)
+
+function Settings.DealDamage(Object:BasePart,position:Vector3)
+	if Object:FindFirstAncestorWhichIsA("Model") then
+
+		local character = Object:FindFirstAncestorWhichIsA("Model")
+		local hum = character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			local dmgpopup = GunAsset.DamagePopUp:Clone()
+			dmgpopup.Anchored= true
+			dmgpopup.Position = position
+			dmgpopup.BillboardGui.Enabled = true
+			local DmgCalculate= NormalDmg
+
+			if Object.Name == "Head"  then
+				DmgCalculate *=2
+				dmgpopup.BillboardGui.TextLabel.Text = "-" .. tostring(DmgCalculate)
+				dmgpopup.BillboardGui.TextLabel.TextColor3 = Color3.fromRGB(255, 166, 11)
+
+			elseif  Object:FindFirstChildWhichIsA("Weld") then
+				local weld = Object:FindFirstChildWhichIsA("Weld") 
+				if weld.Part1.Name == "Head" then
+					DmgCalculate *=2
+					dmgpopup.BillboardGui.TextLabel.Text = "-" .. tostring(DmgCalculate)
+					dmgpopup.BillboardGui.TextLabel.TextColor3 = Color3.fromRGB(255, 166, 11) 
+				end
+			else
+				DmgCalculate = NormalDmg
+				dmgpopup.BillboardGui.TextLabel.Text = "-" .. tostring(DmgCalculate)
+				dmgpopup.BillboardGui.TextLabel.TextColor3 =Color3.fromRGB(255, 0, 0)
+			end
+
+			dmgpopup.Parent = workspace
+			tweenservice:Create(dmgpopup.BillboardGui.TextLabel,tinfo,{TextTransparency = 1}):Play()
+			tweenservice:Create(dmgpopup.BillboardGui , tinfo, {StudsOffset = Vector3.new(0,5,0)}):Play()
+
+			debris:AddItem(dmgpopup,1)
+
+			hum:TakeDamage(DmgCalculate)
+
+		end
+	end
+end
+
+return Settings
